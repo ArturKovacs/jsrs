@@ -1,0 +1,7 @@
+[package]
+name = "jsrs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+oxc = {version  = "0.34.0", features = ["parser", "semantic"]}

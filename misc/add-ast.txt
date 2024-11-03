@@ -1,0 +1,226 @@
+Some(
+    AstNode {
+        id: NodeId(
+            0,
+        ),
+        kind: Program(
+            Program {
+                span: Span {
+                    start: 0,
+                    end: 46,
+                },
+                source_type: SourceType {
+                    language: JavaScript,
+                    module_kind: Module,
+                    variant: Jsx,
+                },
+                source_text: "\r\nfunction add(a, b) {\r\n    return a + b;\r\n}\r\n",
+                comments: Vec(
+                    [],
+                ),
+                hashbang: None,
+                directives: Vec(
+                    [],
+                ),
+                body: Vec(
+                    [
+                        FunctionDeclaration(
+                            Function {
+                                type: FunctionDeclaration,
+                                span: Span {
+                                    start: 2,
+                                    end: 44,
+                                },
+                                id: Some(
+                                    BindingIdentifier {
+                                        span: Span {
+                                            start: 11,
+                                            end: 14,
+                                        },
+                                        name: "add",
+                                        symbol_id: Cell {
+                                            value: Some(
+                                                SymbolId(
+                                                    0,
+                                                ),
+                                            ),
+                                        },
+                                    },
+                                ),
+                                generator: false,
+                                async: false,
+                                declare: false,
+                                type_parameters: None,
+                                this_param: None,
+                                params: FormalParameters {
+                                    span: Span {
+                                        start: 14,
+                                        end: 20,
+                                    },
+                                    kind: FormalParameter,
+                                    items: Vec(
+                                        [
+                                            FormalParameter {
+                                                span: Span {
+                                                    start: 15,
+                                                    end: 16,
+                                                },
+                                                decorators: Vec(
+                                                    [],
+                                                ),
+                                                pattern: BindingPattern {
+                                                    kind: BindingIdentifier(
+                                                        BindingIdentifier {
+                                                            span: Span {
+                                                                start: 15,
+                                                                end: 16,
+                                                            },
+                                                            name: "a",
+                                                            symbol_id: Cell {
+                                                                value: Some(
+                                                                    SymbolId(
+                                                                        1,
+                                                                    ),
+                                                                ),
+                                                            },
+                                                        },
+                                                    ),
+                                                    type_annotation: None,
+                                                    optional: false,
+                                                },
+                                                accessibility: None,
+                                                readonly: false,
+                                                override: false,
+                                            },
+                                            FormalParameter {
+                                                span: Span {
+                                                    start: 18,
+                                                    end: 19,
+                                                },
+                                                decorators: Vec(
+                                                    [],
+                                                ),
+                                                pattern: BindingPattern {
+                                                    kind: BindingIdentifier(
+                                                        BindingIdentifier {
+                                                            span: Span {
+                                                                start: 18,
+                                                                end: 19,
+                                                            },
+                                                            name: "b",
+                                                            symbol_id: Cell {
+                                                                value: Some(
+                                                                    SymbolId(
+                                                                        2,
+                                                                    ),
+                                                                ),
+                                                            },
+                                                        },
+                                                    ),
+                                                    type_annotation: None,
+                                                    optional: false,
+                                                },
+                                                accessibility: None,
+                                                readonly: false,
+                                                override: false,
+                                            },
+                                        ],
+                                    ),
+                                    rest: None,
+                                },
+                                return_type: None,
+                                body: Some(
+                                    FunctionBody {
+                                        span: Span {
+                                            start: 21,
+                                            end: 44,
+                                        },
+                                        directives: Vec(
+                                            [],
+                                        ),
+                                        statements: Vec(
+                                            [
+                                                ReturnStatement(
+                                                    ReturnStatement {
+                                                        span: Span {
+                                                            start: 28,
+                                                            end: 41,
+                                                        },
+                                                        argument: Some(
+                                                            BinaryExpression(
+                                                                BinaryExpression {
+                                                                    span: Span {
+                                                                        start: 35,
+                                                                        end: 40,
+                                                                    },
+                                                                    left: Identifier(
+                                                                        IdentifierReference {
+                                                                            span: Span {
+                                                                                start: 35,
+                                                                                end: 36,
+                                                                            },
+                                                                            name: "a",
+                                                                            reference_id: Cell {
+                                                                                value: Some(
+                                                                                    ReferenceId(
+                                                                                        0,
+                                                                                    ),
+                                                                                ),
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                    operator: Addition,
+                                                                    right: Identifier(
+                                                                        IdentifierReference {
+                                                                            span: Span {
+                                                                                start: 39,
+                                                                                end: 40,
+                                                                            },
+                                                                            name: "b",
+                                                                            reference_id: Cell {
+                                                                                value: Some(
+                                                                                    ReferenceId(
+                                                                                        1,
+                                                                                    ),
+                                                                                ),
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                },
+                                                            ),
+                                                        ),
+                                                    },
+                                                ),
+                                            ],
+                                        ),
+                                    },
+                                ),
+                                scope_id: Cell {
+                                    value: Some(
+                                        ScopeId(
+                                            1,
+                                        ),
+                                    ),
+                                },
+                            },
+                        ),
+                    ],
+                ),
+                scope_id: Cell {
+                    value: Some(
+                        ScopeId(
+                            0,
+                        ),
+                    ),
+                },
+            },
+        ),
+        scope_id: ScopeId(
+            0,
+        ),
+        cfg_id: NodeIndex(1),
+        flags: NodeFlags(
+            0x0,
+        ),
+    },
+)
