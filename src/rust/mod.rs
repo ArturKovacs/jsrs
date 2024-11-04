@@ -1,12 +1,20 @@
 use oxc::{
     ast::{
-        ast::{BinaryOperator, BindingPattern, Expression, Function, Statement},
+        ast::{AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, Expression, Function, Statement, StaticMemberExpression, UnaryOperator},
         AstKind,
     },
     syntax::node,
 };
 
 static OUTPUT_PRELUDE: &str = include_str!("./output_prelude.rs");
+
+enum DataDirection {
+    None,
+    Read,
+    Write
+}
+
+use DataDirection::*;
 
 trait JoinIterator {
     fn join(self, sep: &str) -> String;
@@ -26,7 +34,8 @@ where
 pub fn node_to_rust_text(node_kind: &AstKind) -> String {
     match node_kind {
         AstKind::Program(program) => {
-            let mut result = String::with_capacity(program.source_text.len() + OUTPUT_PRELUDE.len());
+            let mut result =
+                String::with_capacity(program.source_text.len() + OUTPUT_PRELUDE.len());
 
             result.push_str(OUTPUT_PRELUDE);
 
@@ -65,7 +74,7 @@ fn statement_to_rust_text(statement: &Statement) -> String {
             let expression = statement
                 .argument
                 .as_ref()
-                .map(expression_to_rust_text)
+                .map(|e| expression_to_rust_text(e, Read))
                 .unwrap_or_else(String::new);
             result = format!("return {expression};");
         }
@@ -82,25 +91,97 @@ fn binding_patter_to_rust_text(pattern: &BindingPattern) -> String {
     }
 }
 
-fn expression_to_rust_text(expression: &Expression) -> String {
+fn expression_to_rust_text(expression: &Expression, data_dir: DataDirection) -> String {
     match expression {
         Expression::BinaryExpression(exp) => {
-            let left = expression_to_rust_text(&exp.left);
-            let right = expression_to_rust_text(&exp.right);
+            let left = expression_to_rust_text(&exp.left, Write);
+            let right = expression_to_rust_text(&exp.right, Read);
 
-            let op = binary_operator_to_rust_text(&exp.operator);
+            let op = binary_operator_to_rust_text(exp.operator);
 
             format!("({left}).{op}({right})")
+        },
+        Expression::UnaryExpression(exp) => {
+            let op = unary_operator_to_rust_text(exp.operator);
+            let argument = expression_to_rust_text(&exp.argument, Read);
+            format!("{op}({argument})")
+        },
+        Expression::AssignmentExpression(exp) => {
+            let target = assignment_tartet_to_rust_text(&exp.left);
+            let op = assignment_operator_to_rust_text(exp.operator);
+            let source = expression_to_rust_text(&exp.right, Read);
+            format!("{target} {op} {source}")
+        },
+        Expression::StaticMemberExpression(exp) => {
+            
         }
+        Expression::ComputedMemberExpression(exp) => {
+            
+        }
+        // Expression::CallExpression(exp) => {
+
+        // },
+        // Expression::UpdateExpression(exp) => {
+
+        // },
+        // Expression::ParenthesizedExpression(exp) => {
+
+        // },
         Expression::Identifier(ident) => ident.name.to_string(),
         _ => unimplemented!(),
     }
 }
 
+fn static_member_read_to_rust_text(exp: &StaticMemberExpression) -> String {
+    let object = expression_to_rust_text(&exp.object, None);
+    let prop_name = exp.property.name.as_str();
+    let prop_name_value = format!("JsValue::String(JsString::from(\"{prop_name}\"))");
+    let property = match data_dir {
+        Read => format!(".get_prop({prop_name_value})"),
+        Write => format!(".set_prop"),
+        None => unimplemented!()
+    };
+
+    format!("{object}.{property}")
+}
+
 /// This always returns the name of the equivalent function in our custom Rust impl
-fn binary_operator_to_rust_text(operator: &BinaryOperator) -> &'static str {
+fn binary_operator_to_rust_text(operator: BinaryOperator) -> &'static str {
     match operator {
-        BinaryOperator::Addition => "add",
+        BinaryOperator::Addition => "+",
+        BinaryOperator::Division => "/",
+        BinaryOperator::LessThan => "<",
         _ => unimplemented!(),
+    }
+}
+
+fn unary_operator_to_rust_text(operator: UnaryOperator) -> &'static str {
+    match operator {
+        UnaryOperator::UnaryNegation => "negate",
+        UnaryOperator::UnaryPlus => "plus",
+        _ => unimplemented!()
+    }
+}
+
+fn assignment_operator_to_rust_text(operator: AssignmentOperator) -> &'static str {
+    match operator {
+        AssignmentOperator::Assign => "=",
+        AssignmentOperator::Addition => "+=",
+        AssignmentOperator::Subtraction => "-=",
+        AssignmentOperator::Multiplication => "*=",
+        
+        _ => unimplemented!()
+    }
+}
+
+fn assignment_tartet_to_rust_text(target: &AssignmentTarget) -> String {
+    match target {
+        AssignmentTarget::AssignmentTargetIdentifier(target) => {
+            target.name.to_string()
+        }
+        AssignmentTarget::StaticMemberExpression(exp) => {
+            static_member_expression_to_rust_text(exp, Write)
+        }
+        _ => unimplemented!()
     }
 }
