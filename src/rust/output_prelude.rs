@@ -1,4 +1,4 @@
-use std::{collections::HashMap, f64::NAN, rc::Rc};
+use std::{collections::HashMap, f64::NAN, iter, rc::Rc};
 
 mod js_cell {
     use std::{
@@ -67,18 +67,18 @@ use js_cell::JsCell;
 
 #[derive(Clone)]
 struct ConsoleStruct {
-    pub log: JsValue
+    pub log: JsValue,
 }
 
 #[derive(Clone)]
 struct ProcessStruct {
-    pub argv: JsValue
+    pub argv: JsValue,
 }
 
 #[derive(Clone)]
 struct MathStruct {
     pub PI: JsValue,
-    pub sqrt: JsValue
+    pub sqrt: JsValue,
 }
 
 thread_local! {
@@ -92,7 +92,10 @@ thread_local! {
 
     static PROCESS_OBJ: ProcessStruct = ProcessStruct {
         argv: JsValue::new_array(
-            std::env::args().map(|a| JsValue::String(JsString::from(a))).collect::<Vec<_>>()
+            // We pretend as if the program is running on node, because nodejs scripts
+            // receive that as the first argument
+            iter::once(String::from("node")).chain(std::env::args())
+            .map(|a| JsValue::String(JsString::from(a))).collect::<Vec<_>>()
         )
     };
 
@@ -110,21 +113,15 @@ thread_local! {
 }
 
 fn console() -> ConsoleStruct {
-    CONSOLE_OBJ.with(|console| {
-        console.clone()
-    })
+    CONSOLE_OBJ.with(|console| console.clone())
 }
 
 fn process() -> ProcessStruct {
-    PROCESS_OBJ.with(|process| {
-        process.clone()
-    })
+    PROCESS_OBJ.with(|process| process.clone())
 }
 
 fn math() -> MathStruct {
-    MATH_OBJ.with(|math| {
-        math.clone()
-    })
+    MATH_OBJ.with(|math| math.clone())
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]

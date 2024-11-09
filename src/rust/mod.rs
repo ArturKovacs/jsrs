@@ -3,10 +3,16 @@ use std::collections::{HashMap, HashSet};
 use oxc::{
     ast::{
         ast::{
-            Argument, AssignmentExpression, AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, ComputedMemberExpression, Expression, ForStatementInit, ObjectPropertyKind, Program, PropertyKey, SimpleAssignmentTarget, Statement, StaticMemberExpression, UnaryOperator, UpdateExpression, VariableDeclaration, VariableDeclarationKind
+            Argument, AssignmentExpression, AssignmentOperator, AssignmentTarget, BinaryOperator,
+            BindingPattern, ComputedMemberExpression, Expression, ForStatementInit,
+            ObjectPropertyKind, Program, PropertyKey, SimpleAssignmentTarget, Statement,
+            StaticMemberExpression, UnaryOperator, UpdateExpression, VariableDeclaration,
+            VariableDeclarationKind,
         },
         AstKind,
-    }, semantic::{AstNode, AstNodes}, syntax::node
+    },
+    semantic::{AstNode, AstNodes},
+    syntax::node,
 };
 
 mod output_prelude;
@@ -29,14 +35,15 @@ where
 }
 
 pub fn count_variable_modificiations(nodes: &AstNodes) -> HashMap<String, usize> {
-    let variables = nodes.iter().filter_map(|node| {
-        match node.kind() {
+    let variables = nodes
+        .iter()
+        .filter_map(|node| match node.kind() {
             AstKind::VariableDeclarator(decl) => {
                 Some(decl.id.get_identifier().unwrap().to_string())
             }
-            _ => None
-        }
-    }).collect::<HashSet<String>>();
+            _ => None,
+        })
+        .collect::<HashSet<String>>();
     let result = HashMap::new();
     // for varialbe in variables {
     //     let modifications = nodes.iter().filter(|node| {
@@ -89,7 +96,12 @@ fn statement_to_rust_text(statement: &Statement) -> String {
             let body = func
                 .body
                 .as_ref()
-                .map(|body| body.statements.iter().map(statement_to_rust_text).join("\n"))
+                .map(|body| {
+                    body.statements
+                        .iter()
+                        .map(statement_to_rust_text)
+                        .join("\n")
+                })
                 .unwrap_or_else(String::new);
 
             format!("let {name} = |{params}| -> JsValue {{ {body} return JsValue::Undefined; }}; ")
@@ -102,38 +114,53 @@ fn statement_to_rust_text(statement: &Statement) -> String {
                 .unwrap_or_else(String::new);
             format!("return {expression};")
         }
-        Statement::VariableDeclaration(statement) => {
-            variable_declaration_to_rust_text(&statement)
-        }
+        Statement::VariableDeclaration(statement) => variable_declaration_to_rust_text(&statement),
         Statement::ForStatement(statement) => {
-            let init = statement.init.as_ref().map(|statement| {
-                if let ForStatementInit::VariableDeclaration(var_decl) = &statement {
-                    variable_declaration_to_rust_text(&var_decl)
-                } else {
-                    let exp = statement.as_expression().unwrap();
-                    let mut exp = expression_to_rust_text(exp);
-                    exp.push_str(";");
-                    exp
-                }
-            }).unwrap_or("".into());
+            let init = statement
+                .init
+                .as_ref()
+                .map(|statement| {
+                    if let ForStatementInit::VariableDeclaration(var_decl) = &statement {
+                        variable_declaration_to_rust_text(&var_decl)
+                    } else {
+                        let exp = statement.as_expression().unwrap();
+                        let mut exp = expression_to_rust_text(exp);
+                        exp.push_str(";");
+                        exp
+                    }
+                })
+                .unwrap_or("".into());
 
-            let test = statement.test.as_ref().map(|test| {
-                let text = expression_to_rust_text(test);
-                format!("if ({text}).falsy() {{ break; }}")
-            }).unwrap_or("".into());
+            let test = statement
+                .test
+                .as_ref()
+                .map(|test| {
+                    let text = expression_to_rust_text(test);
+                    format!("if ({text}).falsy() {{ break; }}")
+                })
+                .unwrap_or("".into());
 
-            let update = statement.update.as_ref().map(|exp| {
-                let mut body = expression_to_rust_text(exp);
-                body.push_str(";");
-                body
-            }).unwrap_or("".into());
+            let update = statement
+                .update
+                .as_ref()
+                .map(|exp| {
+                    let mut body = expression_to_rust_text(exp);
+                    body.push_str(";");
+                    body
+                })
+                .unwrap_or("".into());
 
             let body = statement_to_rust_text(&statement.body);
 
             format!("{init}\nloop {{\n{test}\n{body}\n{update}}}")
         }
         Statement::BlockStatement(statement) => {
-            let body = statement.body.iter().map(statement_to_rust_text).collect::<Vec<String>>().join("\n");
+            let body = statement
+                .body
+                .iter()
+                .map(statement_to_rust_text)
+                .collect::<Vec<String>>()
+                .join("\n");
             format!("{{{body}}}")
         }
         Statement::ExpressionStatement(statement) => {
@@ -147,21 +174,24 @@ fn statement_to_rust_text(statement: &Statement) -> String {
 fn update_expression_to_rust_text(expression: &UpdateExpression) -> String {
     use oxc::ast::ast::UpdateOperator::*;
     let name = match &expression.argument {
-        SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) => {
-            identifier.name.as_ref()
-        }
-        _ => unimplemented!()
+        SimpleAssignmentTarget::AssignmentTargetIdentifier(identifier) => identifier.name.as_ref(),
+        _ => unimplemented!(),
     };
-    
+
     if expression.prefix {
         match expression.operator {
             Decrement => format!("{{ {name} = {name}.sub(JsValue::Number(1.0)); {name} }}"),
             Increment => format!("{{ {name} = {name}.add(JsValue::Number(1.0)); {name} }}"),
         }
-    } else { // postfix
+    } else {
+        // postfix
         match expression.operator {
-            Decrement => format!("{{ let tmp = ({name}).clone(); {name} = {name}.sub(JsValue::Number(1.0)); tmp }}"),
-            Increment => format!("{{ let tmp = ({name}).clone(); {name} = {name}.add(JsValue::Number(1.0)); tmp }}"),
+            Decrement => format!(
+                "{{ let tmp = ({name}).clone(); {name} = {name}.sub(JsValue::Number(1.0)); tmp }}"
+            ),
+            Increment => format!(
+                "{{ let tmp = ({name}).clone(); {name} = {name}.add(JsValue::Number(1.0)); tmp }}"
+            ),
         }
     }
 }
@@ -180,7 +210,7 @@ fn variable_declaration_to_rust_text(declaration: &VariableDeclaration) -> Strin
             Some(init) => format!("= {}", expression_to_rust_text(init)),
             None => String::new(),
         };
-        declaration_texts.push_str(&format!("{kind} {var_name} {init};\n"));
+        declaration_texts.push_str(&format!("{kind} {var_name} {init};"));
     }
     declaration_texts
 }
@@ -250,7 +280,6 @@ fn expression_to_rust_text(expression: &Expression) -> String {
         Expression::CallExpression(exp) => {
             let callee = expression_to_rust_text(&exp.callee);
 
-            
             let mut arguments = Vec::<String>::with_capacity(exp.arguments.len());
             for arg in exp.arguments.iter() {
                 let arg = arg.as_expression().unwrap();
@@ -258,7 +287,7 @@ fn expression_to_rust_text(expression: &Expression) -> String {
                 arguments.push(arg);
             }
             let args_text = arguments.join(", ");
-            
+
             let is_object = is_callee_an_object(&exp.callee);
             if is_object {
                 format!("({callee}).call(&[{args_text}])")
@@ -278,14 +307,12 @@ fn expression_to_rust_text(expression: &Expression) -> String {
                 .join(", ");
             format!("JsValue::new_array(vec![{elements_text}])")
         }
-        Expression::UpdateExpression(exp) => {
-            update_expression_to_rust_text(exp)
-        },
+        Expression::UpdateExpression(exp) => update_expression_to_rust_text(exp),
         Expression::Identifier(ident) => ident.name.to_string(),
         Expression::ParenthesizedExpression(exp) => {
             let exp_text = expression_to_rust_text(&exp.expression);
             format!("({exp_text})")
-        },
+        }
         _ => unimplemented!("{:#?}", expression),
     }
 }
@@ -302,7 +329,7 @@ fn is_callee_an_object(callee: &Expression) -> bool {
         Expression::ComputedMemberExpression(_) => true,
         Expression::StaticMemberExpression(_) => true,
         Expression::ParenthesizedExpression(exp) => is_callee_an_object(&exp.expression),
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -320,7 +347,7 @@ fn assignment_expression_to_rust_text(exp: &AssignmentExpression) -> String {
                 AssignmentOperator::Subtraction => format!("{target}.sub({source})"),
                 AssignmentOperator::Division => format!("{target}.div({source})"),
                 AssignmentOperator::Multiplication => format!("{target}.mult({source})"),
-                _ => unimplemented!()
+                _ => unimplemented!(),
             };
 
             format!("{target} = {source}")
@@ -330,7 +357,7 @@ fn assignment_expression_to_rust_text(exp: &AssignmentExpression) -> String {
             let source = match operator {
                 AssignmentOperator::Assign => source,
                 AssignmentOperator::Addition => format!("{member_read}.add({source})"),
-                _ => unimplemented!()
+                _ => unimplemented!(),
             };
             static_member_write_to_rust_text(exp, &source)
         }
@@ -343,7 +370,7 @@ fn assignment_expression_to_rust_text(exp: &AssignmentExpression) -> String {
 }
 
 fn computed_member_read_to_rust_text(exp: &ComputedMemberExpression) -> String {
-    let object = expression_to_rust_text(&exp.object);;
+    let object = expression_to_rust_text(&exp.object);
     let prop_name_value = expression_to_rust_text(&exp.expression);
 
     format!("{object}.get_prop(({prop_name_value}).clone())")
@@ -360,24 +387,24 @@ fn static_member_read_to_rust_text(exp: &StaticMemberExpression) -> String {
     let prop_name = exp.property.name.as_str();
 
     // Special cases for the Javascript standard "library"
-    // TODO possibly a better approach is to actually create a static global `Math` object that the 
+    // TODO possibly a better approach is to actually create a static global `Math` object that the
     // rust code can access much the same way as the JS version would do it.
     if let Expression::Identifier(ident) = &exp.object {
         if ident.name == "Math" {
             match prop_name {
                 "PI" => return String::from("math().PI"),
                 "sqrt" => return String::from("math().sqrt"),
-                _ => ()
+                _ => (),
             }
         } else if ident.name == "process" {
             match prop_name {
                 "argv" => return String::from("process().argv"),
-                _ => ()
+                _ => (),
             }
         } else if ident.name == "console" {
             match prop_name {
                 "log" => return String::from("console().log"),
-                _ => ()
+                _ => (),
             }
         }
     }
