@@ -1,4 +1,4 @@
-use std::{collections::HashMap, f64::NAN, ops::DerefMut, rc::Rc};
+use std::{collections::HashMap, f64::NAN, rc::Rc};
 
 mod js_cell {
     use std::{
@@ -65,31 +65,66 @@ mod js_cell {
 
 use js_cell::JsCell;
 
-pub struct JsMath;
-impl JsMath {
-    const PI: JsValue = JsValue::Number(std::f64::consts::PI);
-    pub fn sqrt(val: JsValue) -> JsValue {
-        match val {
-            // TODO: The real implementation would call `to_number` before calculating the sqrt
-            JsValue::Number(val) => JsValue::Number(val.sqrt()),
-            _ => unimplemented!()
-        }
-    }
+#[derive(Clone)]
+struct ConsoleStruct {
+    pub log: JsValue
 }
 
-pub struct JsProcess;
-impl JsProcess {
-    pub fn argv() -> JsObject {
-        JsObject::new_array(std::env::args().map(|a| JsValue::String(JsString::from(a))).collect::<Vec<_>>())
-    }
+#[derive(Clone)]
+struct ProcessStruct {
+    pub argv: JsValue
 }
 
+#[derive(Clone)]
+struct MathStruct {
+    pub PI: JsValue,
+    pub sqrt: JsValue
+}
 
-pub struct JsConsole;
-impl JsConsole {
-    pub fn log(value: JsValue) {
-        println!("{}", value.to_js_string().as_str())
-    }
+thread_local! {
+    static CONSOLE_OBJ: ConsoleStruct = ConsoleStruct {
+        log: JsValue::new_function(Box::new(|args| {
+            let output = args.iter().map(|arg| arg.to_js_string().as_str().to_string()).collect::<Vec<_>>().join(" ");
+            println!("{output}");
+            JsValue::Undefined
+        }))
+    };
+
+    static PROCESS_OBJ: ProcessStruct = ProcessStruct {
+        argv: JsValue::new_array(
+            std::env::args().map(|a| JsValue::String(JsString::from(a))).collect::<Vec<_>>()
+        )
+    };
+
+    static MATH_OBJ: MathStruct = MathStruct {
+        PI: JsValue::Number(std::f64::consts::PI),
+        sqrt: JsValue::new_function(Box::new(|args| {
+            let val = &args[0];
+            match val {
+                // TODO: The real implementation would call `to_number` before calculating the sqrt
+                JsValue::Number(val) => JsValue::Number(val.sqrt()),
+                _ => unimplemented!(),
+            }
+        }))
+    };
+}
+
+fn console() -> ConsoleStruct {
+    CONSOLE_OBJ.with(|console| {
+        console.clone()
+    })
+}
+
+fn process() -> ProcessStruct {
+    PROCESS_OBJ.with(|process| {
+        process.clone()
+    })
+}
+
+fn math() -> MathStruct {
+    MATH_OBJ.with(|math| {
+        math.clone()
+    })
 }
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -131,7 +166,7 @@ impl JsString {
 
 enum ObjectSubtype {
     RegularObject,
-    Function(Box<dyn Fn(&[JsValue])>),
+    Function(Box<dyn Fn(&[JsValue]) -> JsValue>),
     Array(Vec<JsValue>),
 }
 
@@ -151,27 +186,6 @@ pub struct JsObjectContents {
 }
 
 pub type JsObject = Rc<JsCell<JsObjectContents>>;
-
-pub trait JsObjectTrait {
-    fn from_entries<const N: usize>(entries: [(JsString, JsValue); N]) -> Self;
-    fn new_array(elements: Vec<JsValue>) -> Self;
-}
-
-impl JsObjectTrait for JsObject {
-    fn from_entries<const N: usize>(entries: [(JsString, JsValue); N]) -> Self {
-        JsObject::new(JsCell::new( JsObjectContents {
-            properties: HashMap::from(entries),
-            subtype: ObjectSubtype::RegularObject
-        } ))
-    }
-
-    fn new_array(elements: Vec<JsValue>) -> Self {
-        JsObject::new(JsCell::new(JsObjectContents {
-            properties: HashMap::new(),
-            subtype: ObjectSubtype::Array(elements)
-        }))
-    }
-}
 
 #[derive(Clone)]
 pub enum JsValue {
@@ -196,6 +210,27 @@ impl From<usize> for JsValue {
 }
 
 impl JsValue {
+    fn from_entries<const N: usize>(entries: [(JsString, JsValue); N]) -> Self {
+        JsValue::Object(JsObject::new(JsCell::new(JsObjectContents {
+            properties: HashMap::from(entries),
+            subtype: ObjectSubtype::RegularObject,
+        })))
+    }
+
+    fn new_array(elements: Vec<JsValue>) -> Self {
+        JsValue::Object(JsObject::new(JsCell::new(JsObjectContents {
+            properties: HashMap::new(),
+            subtype: ObjectSubtype::Array(elements),
+        })))
+    }
+
+    fn new_function(func: Box<dyn Fn(&[JsValue]) -> JsValue>) -> JsValue {
+        JsValue::Object(JsObject::new(JsCell::new(JsObjectContents {
+            properties: Default::default(),
+            subtype: ObjectSubtype::Function(func),
+        })))
+    }
+
     pub fn add(&self, other: JsValue) -> JsValue {
         self.do_binary_operation_nums(other, |a, b| a + b)
     }
@@ -213,10 +248,16 @@ impl JsValue {
     }
 
     #[inline]
-    fn do_binary_operation_nums(&self, other: JsValue, operation: impl Fn(f64, f64) -> f64) -> JsValue {
+    fn do_binary_operation_nums(
+        &self,
+        other: JsValue,
+        operation: impl Fn(f64, f64) -> f64,
+    ) -> JsValue {
         use JsValue::*;
         match (self, other) {
-            (Number(self_num), Number(other_num)) => JsValue::Number(operation(*self_num , other_num)),
+            (Number(self_num), Number(other_num)) => {
+                JsValue::Number(operation(*self_num, other_num))
+            }
             _ => unimplemented!(),
         }
     }
@@ -257,6 +298,28 @@ impl JsValue {
                     .get(&name.to_js_string())
                     .unwrap_or(&JsValue::Undefined)
                     .clone();
+            }
+            JsValue::Number(num) => {
+                let prop_name = match &name {
+                    JsValue::String(prop) => prop.as_str(),
+                    _ => unimplemented!(),
+                };
+                if prop_name == "toFixed" {
+                    let num = *num;
+                    return JsValue::new_function(Box::new(move |args| {
+                        let digits = match args[0] {
+                            JsValue::Number(digits) => digits as usize,
+                            _ => unreachable!(),
+                        };
+                        JsValue::String(JsString::from(format!(
+                            "{number:.prec$}",
+                            number = num,
+                            prec = digits
+                        )))
+                    }));
+                } else {
+                    unimplemented!()
+                }
             }
             _ => unimplemented!(),
         }
@@ -310,7 +373,7 @@ impl JsValue {
             JsValue::Boolean(boolean) => *boolean,
             JsValue::Number(number) => *number != 0.0,
             JsValue::String(string) => string.as_str().is_empty(),
-            JsValue::Object(_) => true
+            JsValue::Object(_) => true,
         }
     }
 
@@ -318,12 +381,38 @@ impl JsValue {
         let num = match self {
             JsValue::Undefined => NAN,
             JsValue::Null => 0.0,
-            JsValue::Boolean(value) => if *value { 1.0 } else { 0.0 },
+            JsValue::Boolean(value) => {
+                if *value {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             JsValue::Number(value) => *value,
             JsValue::String(js_string) => str::parse::<f64>(js_string.as_str()).unwrap_or(NAN),
             JsValue::Object(_) => NAN,
         };
         JsValue::Number(num)
+    }
+
+    pub fn call(&self, args: &[JsValue]) -> JsValue {
+        const MESSAGE: &str = "Used the funciton call syntax () on something that isn't callable";
+        match self {
+            JsValue::Object(obj) => {
+                let borrowed = obj.borrow_mut();
+                match &borrowed.subtype {
+                    ObjectSubtype::Function(func) => (func)(args),
+                    _ => unreachable!("{}", MESSAGE),
+                }
+            }
+            _ => unreachable!("{}", MESSAGE),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for JsValue {
+    fn from(value: &'a str) -> Self {
+        JsValue::String(JsString::from(value))
     }
 }
 
@@ -344,4 +433,3 @@ fn plus(value: JsValue) -> JsValue {
 // ----------------------------------------------------------
 // END OF PRELUDE
 // ----------------------------------------------------------
-

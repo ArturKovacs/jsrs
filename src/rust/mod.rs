@@ -9,6 +9,8 @@ use oxc::{
     }, semantic::{AstNode, AstNodes}, syntax::node
 };
 
+mod output_prelude;
+
 static OUTPUT_PRELUDE: &str = include_str!("./output_prelude.rs");
 
 trait JoinIterator {
@@ -158,8 +160,8 @@ fn update_expression_to_rust_text(expression: &UpdateExpression) -> String {
         }
     } else { // postfix
         match expression.operator {
-            Decrement => format!("{{ let tmp = {name}; {name} = {name}.sub(JsValue::Number(1.0)); tmp }}"),
-            Increment => format!("{{ let tmp = {name}; {name} = {name}.add(JsValue::Number(1.0)); tmp }}"),
+            Decrement => format!("{{ let tmp = ({name}).clone(); {name} = {name}.sub(JsValue::Number(1.0)); tmp }}"),
+            Increment => format!("{{ let tmp = ({name}).clone(); {name} = {name}.add(JsValue::Number(1.0)); tmp }}"),
         }
     }
 }
@@ -200,7 +202,7 @@ fn expression_to_rust_text(expression: &Expression) -> String {
 
             let op = binary_operator_to_rust_text(exp.operator);
 
-            format!("({left}).{op}({right})")
+            format!("({left}).{op}(({right}).clone())")
         }
         Expression::UnaryExpression(exp) => {
             let op = unary_operator_to_rust_text(exp.operator);
@@ -226,7 +228,7 @@ fn expression_to_rust_text(expression: &Expression) -> String {
             format!("JsValue::Number({value} as f64)")
         }
         Expression::ObjectExpression(exp) => {
-            let mut object_text = String::from("JsObject::from_entries([");
+            let mut object_text = String::from("JsValue::from_entries([");
             for entry in exp.properties.iter() {
                 if let ObjectPropertyKind::ObjectProperty(property) = entry {
                     if let PropertyKey::StaticIdentifier(identifier) = &property.key {
@@ -243,11 +245,12 @@ fn expression_to_rust_text(expression: &Expression) -> String {
             }
             object_text.push_str("])");
 
-            format!("JsValue::Object({object_text})")
+            object_text
         }
         Expression::CallExpression(exp) => {
             let callee = expression_to_rust_text(&exp.callee);
 
+            
             let mut arguments = Vec::<String>::with_capacity(exp.arguments.len());
             for arg in exp.arguments.iter() {
                 let arg = arg.as_expression().unwrap();
@@ -255,8 +258,13 @@ fn expression_to_rust_text(expression: &Expression) -> String {
                 arguments.push(arg);
             }
             let args_text = arguments.join(", ");
-
-            format!("{callee}({args_text})")
+            
+            let is_object = is_callee_an_object(&exp.callee);
+            if is_object {
+                format!("({callee}).call(&[{args_text}])")
+            } else {
+                format!("{callee}({args_text})")
+            }
         }
         Expression::ArrayExpression(exp) => {
             let elements_text = exp
@@ -268,7 +276,7 @@ fn expression_to_rust_text(expression: &Expression) -> String {
                 })
                 .collect::<Vec<String>>()
                 .join(", ");
-            format!("JsObject::new_array(vec![{elements_text}])")
+            format!("JsValue::new_array(vec![{elements_text}])")
         }
         Expression::UpdateExpression(exp) => {
             update_expression_to_rust_text(exp)
@@ -279,6 +287,22 @@ fn expression_to_rust_text(expression: &Expression) -> String {
             format!("({exp_text})")
         },
         _ => unimplemented!("{:#?}", expression),
+    }
+}
+
+fn is_callee_an_object(callee: &Expression) -> bool {
+    match callee {
+        Expression::FunctionExpression(_) => false,
+        Expression::Identifier(_) => false,
+        Expression::ArrowFunctionExpression(_) => false,
+        Expression::ArrayExpression(_) => true,
+        Expression::CallExpression(_) => true,
+        Expression::ChainExpression(_) => true,
+        Expression::ThisExpression(_) => true,
+        Expression::ComputedMemberExpression(_) => true,
+        Expression::StaticMemberExpression(_) => true,
+        Expression::ParenthesizedExpression(exp) => is_callee_an_object(&exp.expression),
+        _ => unreachable!()
     }
 }
 
@@ -341,25 +365,25 @@ fn static_member_read_to_rust_text(exp: &StaticMemberExpression) -> String {
     if let Expression::Identifier(ident) = &exp.object {
         if ident.name == "Math" {
             match prop_name {
-                "PI" => return String::from("JsMath::PI"),
-                "sqrt" => return String::from("JsMath::sqrt"),
+                "PI" => return String::from("math().PI"),
+                "sqrt" => return String::from("math().sqrt"),
                 _ => ()
             }
         } else if ident.name == "process" {
             match prop_name {
-                "argv" => return String::from("JsProcess::argv()"),
+                "argv" => return String::from("process().argv"),
                 _ => ()
             }
         } else if ident.name == "console" {
             match prop_name {
-                "log" => return String::from("JsConsole::log"),
+                "log" => return String::from("console().log"),
                 _ => ()
             }
         }
     }
 
     let object = expression_to_rust_text(&exp.object);
-    let prop_name_value = format!("JsValue::String(JsString::from(\"{prop_name}\"))");
+    let prop_name_value = format!("JsValue::from(\"{prop_name}\")");
 
     format!("{object}.get_prop({prop_name_value})")
 }
@@ -367,7 +391,7 @@ fn static_member_read_to_rust_text(exp: &StaticMemberExpression) -> String {
 fn static_member_write_to_rust_text(exp: &StaticMemberExpression, value_expr: &str) -> String {
     let object = expression_to_rust_text(&exp.object);
     let prop_name = exp.property.name.as_str();
-    let prop_name_value = format!("JsValue::String(JsString::from(\"{prop_name}\"))");
+    let prop_name_value = format!("JsValue::from(\"{prop_name}\")");
 
     format!("{object}.set_prop({prop_name_value}, {value_expr})")
 }
