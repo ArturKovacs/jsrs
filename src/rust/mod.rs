@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use oxc::{
     ast::{
         ast::{
-            Argument, AssignmentExpression, AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, ComputedMemberExpression, Expression, ForStatementInit, Function, ObjectPropertyKind, Program, PropertyKey, SimpleAssignmentTarget, Statement, StaticMemberExpression, UnaryOperator, UpdateExpression, VariableDeclaration, VariableDeclarationKind
+            Argument, AssignmentExpression, AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, ComputedMemberExpression, Expression, ForStatementInit, ObjectPropertyKind, Program, PropertyKey, SimpleAssignmentTarget, Statement, StaticMemberExpression, UnaryOperator, UpdateExpression, VariableDeclaration, VariableDeclarationKind
         },
         AstKind,
     }, semantic::{AstNode, AstNodes}, syntax::node
@@ -251,7 +251,8 @@ fn expression_to_rust_text(expression: &Expression) -> String {
             let mut arguments = Vec::<String>::with_capacity(exp.arguments.len());
             for arg in exp.arguments.iter() {
                 let arg = arg.as_expression().unwrap();
-                arguments.push(expression_to_rust_text(arg));
+                let arg = format!("({}).clone()", expression_to_rust_text(arg));
+                arguments.push(arg);
             }
             let args_text = arguments.join(", ");
 
@@ -332,8 +333,22 @@ fn computed_member_write_to_rust_text(exp: &ComputedMemberExpression, value_expr
 }
 
 fn static_member_read_to_rust_text(exp: &StaticMemberExpression) -> String {
-    let object = expression_to_rust_text(&exp.object);
     let prop_name = exp.property.name.as_str();
+
+    // Special cases for the Javascript standard "library"
+    // TODO possibly a better approach is to actually create a static global `Math` object that the 
+    // rust code can access much the same way as the JS version would do it.
+    if let Expression::Identifier(ident) = &exp.object {
+        if ident.name == "Math" {
+            match prop_name {
+                "PI" => return String::from("JsMath::PI"),
+                "sqrt" => return String::from("JsMath::sqrt"),
+                _ => ()
+            }
+        }
+    }
+
+    let object = expression_to_rust_text(&exp.object);
     let prop_name_value = format!("JsValue::String(JsString::from(\"{prop_name}\"))");
 
     format!("{object}.get_prop({prop_name_value})")

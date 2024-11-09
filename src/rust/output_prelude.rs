@@ -65,6 +65,20 @@ mod js_cell {
 
 use js_cell::JsCell;
 
+pub struct JsMath;
+
+impl JsMath {
+    const PI: JsValue = JsValue::Number(std::f64::consts::PI);
+    pub fn sqrt(val: JsValue) -> JsValue {
+        match val {
+            // TODO: The real implementation would call `to_number` before calculating the sqrt
+            JsValue::Number(val) => JsValue::Number(val.sqrt()),
+            _ => unimplemented!()
+        }
+    }
+}
+
+
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct JsString {
     // TODO: Replace with something that can be used to represent UTF16 strings efficiently
