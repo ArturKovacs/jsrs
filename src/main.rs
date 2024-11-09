@@ -65,9 +65,7 @@ fn main() {
         panic!("Failed to build Semantic for Counter component.");
     }
 
-    println!("{:#?}", semantic.nodes().root_node().unwrap());
-
-    
+    // println!("{:#?}", semantic.nodes().root_node().unwrap());
 
     println!();
     println!();
@@ -75,9 +73,8 @@ fn main() {
     println!();
 
     let root = semantic.nodes().root_node().unwrap();
-    // println!("{}", rust::node_to_rust_text(&root.kind()));
+    println!("{}", rust::node_to_rust_text(&root.kind()));
 }
-
 
 fn print_nodes(ast_nodes: &AstNodes) {
     let mut node_kinds = HashSet::new();
@@ -384,4 +381,3 @@ fn print_nodes(ast_nodes: &AstNodes) {
         println!("{}", kind);
     }
 }
-

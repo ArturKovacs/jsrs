@@ -23,10 +23,13 @@ mod js_cell {
                 value: UnsafeCell::new(value),
             }
         }
+
+        #[inline]
         pub fn borrow(&self) -> &T {
             unsafe { &*self.value.get() }
         }
 
+        #[inline]
         pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
             let value = unsafe { NonNull::new_unchecked(self.value.get()) };
             RefMut {
@@ -112,6 +115,27 @@ pub struct JsObjectContents {
 }
 
 pub type JsObject = Rc<JsCell<JsObjectContents>>;
+
+pub trait JsObjectTrait {
+    fn from_entries<const N: usize>(entries: [(JsString, JsValue); N]) -> Self;
+    fn new_array(elements: Vec<JsValue>) -> Self;
+}
+
+impl JsObjectTrait for JsObject {
+    fn from_entries<const N: usize>(entries: [(JsString, JsValue); N]) -> Self {
+        JsObject::new(JsCell::new( JsObjectContents {
+            properties: HashMap::from(entries),
+            subtype: ObjectSubtype::RegularObject
+        } ))
+    }
+
+    fn new_array(elements: Vec<JsValue>) -> Self {
+        JsObject::new(JsCell::new(JsObjectContents {
+            properties: HashMap::new(),
+            subtype: ObjectSubtype::Array(elements)
+        }))
+    }
+}
 
 #[derive(Clone)]
 pub enum JsValue {
@@ -211,6 +235,21 @@ impl JsValue {
             },
             JsValue::String(val) => val.clone(),
             JsValue::Object(_) => JsString::from("[object Object]"),
+        }
+    }
+
+    pub fn falsy(&self) -> bool {
+        !self.truthy()
+    }
+
+    pub fn truthy(&self) -> bool {
+        match self {
+            JsValue::Undefined => false,
+            JsValue::Null => false,
+            JsValue::Boolean(boolean) => *boolean,
+            JsValue::Number(number) => *number != 0.0,
+            JsValue::String(string) => string.as_str().is_empty(),
+            JsValue::Object(_) => true
         }
     }
 }
