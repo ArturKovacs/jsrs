@@ -1,11 +1,12 @@
+use std::collections::{HashMap, HashSet};
+
 use oxc::{
     ast::{
         ast::{
-            Argument, AssignmentExpression, AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, ComputedMemberExpression, Expression, ForStatementInit, Function, ObjectPropertyKind, PropertyKey, SimpleAssignmentTarget, Statement, StaticMemberExpression, UnaryOperator, UpdateExpression, VariableDeclaration, VariableDeclarationKind
+            Argument, AssignmentExpression, AssignmentOperator, AssignmentTarget, BinaryOperator, BindingPattern, ComputedMemberExpression, Expression, ForStatementInit, Function, ObjectPropertyKind, Program, PropertyKey, SimpleAssignmentTarget, Statement, StaticMemberExpression, UnaryOperator, UpdateExpression, VariableDeclaration, VariableDeclarationKind
         },
         AstKind,
-    },
-    syntax::node,
+    }, semantic::{AstNode, AstNodes}, syntax::node
 };
 
 static OUTPUT_PRELUDE: &str = include_str!("./output_prelude.rs");
@@ -23,6 +24,32 @@ where
     fn join(self, sep: &str) -> String {
         self.collect::<Vec<String>>().join(sep)
     }
+}
+
+pub fn count_variable_modificiations(nodes: &AstNodes) -> HashMap<String, usize> {
+    let variables = nodes.iter().filter_map(|node| {
+        match node.kind() {
+            AstKind::VariableDeclarator(decl) => {
+                Some(decl.id.get_identifier().unwrap().to_string())
+            }
+            _ => None
+        }
+    }).collect::<HashSet<String>>();
+    let result = HashMap::new();
+    // for varialbe in variables {
+    //     let modifications = nodes.iter().filter(|node| {
+    //         match node.kind() {
+    //             AstKind::AssignmentTarget(target) => {
+    //                 match target {
+
+    //                 }
+    //             }
+    //             _ => false
+    //         }
+    //     }).count();
+
+    // }
+    result
 }
 
 pub fn node_to_rust_text(node_kind: &AstKind) -> String {
@@ -54,7 +81,7 @@ fn statement_to_rust_text(statement: &Statement) -> String {
                 .params
                 .items
                 .iter()
-                .map(|param| binding_pattern_to_rust_text(&param.pattern))
+                .map(|param| format!("{}: JsValue", binding_pattern_to_rust_text(&param.pattern)))
                 .join(", ");
 
             let body = func
@@ -153,7 +180,6 @@ fn variable_declaration_to_rust_text(declaration: &VariableDeclaration) -> Strin
         };
         declaration_texts.push_str(&format!("{kind} {var_name} {init};\n"));
     }
-    declaration_texts.push_str(";");
     declaration_texts
 }
 
@@ -206,7 +232,7 @@ fn expression_to_rust_text(expression: &Expression) -> String {
                     if let PropertyKey::StaticIdentifier(identifier) = &property.key {
                         let key = identifier.name.as_str();
                         let value = expression_to_rust_text(&property.value);
-                        let entry_text = format!("({key}, {value})");
+                        let entry_text = format!("(\"{key}\".into(), {value}),");
                         object_text.push_str(&entry_text);
                     } else {
                         unimplemented!()

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::DerefMut, rc::Rc};
+use std::{collections::HashMap, f64::NAN, ops::DerefMut, rc::Rc};
 
 mod js_cell {
     use std::{
@@ -160,10 +160,35 @@ impl From<usize> for JsValue {
 }
 
 impl JsValue {
-    pub fn add(&self, other: &JsValue) -> JsValue {
+    pub fn add(&self, other: JsValue) -> JsValue {
+        self.do_binary_operation_nums(other, |a, b| a + b)
+    }
+
+    pub fn sub(&self, other: JsValue) -> JsValue {
+        self.do_binary_operation_nums(other, |a, b| a - b)
+    }
+
+    pub fn mult(&self, other: JsValue) -> JsValue {
+        self.do_binary_operation_nums(other, |a, b| a * b)
+    }
+
+    pub fn divide(&self, other: JsValue) -> JsValue {
+        self.do_binary_operation_nums(other, |a, b| a / b)
+    }
+
+    #[inline]
+    fn do_binary_operation_nums(&self, other: JsValue, operation: impl Fn(f64, f64) -> f64) -> JsValue {
         use JsValue::*;
         match (self, other) {
-            (Number(self_num), Number(other_num)) => JsValue::Number(self_num + other_num),
+            (Number(self_num), Number(other_num)) => JsValue::Number(operation(*self_num , other_num)),
+            _ => unimplemented!(),
+        }
+    }
+
+    pub fn less(&self, other: JsValue) -> JsValue {
+        use JsValue::*;
+        match (self, other) {
+            (Number(self_num), Number(other_num)) => JsValue::Boolean(*self_num < other_num),
             _ => unimplemented!(),
         }
     }
@@ -252,6 +277,32 @@ impl JsValue {
             JsValue::Object(_) => true
         }
     }
+
+    pub fn to_number(&self) -> JsValue {
+        let num = match self {
+            JsValue::Undefined => NAN,
+            JsValue::Null => 0.0,
+            JsValue::Boolean(value) => if *value { 1.0 } else { 0.0 },
+            JsValue::Number(value) => *value,
+            JsValue::String(js_string) => str::parse::<f64>(js_string.as_str()).unwrap_or(NAN),
+            JsValue::Object(_) => NAN,
+        };
+        JsValue::Number(num)
+    }
+}
+
+#[inline]
+fn negate(value: JsValue) -> JsValue {
+    if let JsValue::Number(num) = value.to_number() {
+        JsValue::Number(-num)
+    } else {
+        unreachable!()
+    }
+}
+
+#[inline]
+fn plus(value: JsValue) -> JsValue {
+    value.to_number()
 }
 
 // ----------------------------------------------------------

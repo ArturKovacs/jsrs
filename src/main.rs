@@ -57,7 +57,7 @@ fn main() {
 
     errors.extend(semantic_errors);
     if errors.is_empty() {
-        println!("parsing and semantic analysis completed successfully.");
+        eprintln!("parsing and semantic analysis completed successfully.");
     } else {
         for error in errors {
             eprintln!("{error:?}");
