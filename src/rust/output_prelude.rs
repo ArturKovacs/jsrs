@@ -66,7 +66,6 @@ mod js_cell {
 use js_cell::JsCell;
 
 pub struct JsMath;
-
 impl JsMath {
     const PI: JsValue = JsValue::Number(std::f64::consts::PI);
     pub fn sqrt(val: JsValue) -> JsValue {
@@ -78,6 +77,20 @@ impl JsMath {
     }
 }
 
+pub struct JsProcess;
+impl JsProcess {
+    pub fn argv() -> JsObject {
+        JsObject::new_array(std::env::args().map(|a| JsValue::String(JsString::from(a))).collect::<Vec<_>>())
+    }
+}
+
+
+pub struct JsConsole;
+impl JsConsole {
+    pub fn log(value: JsValue) {
+        println!("{}", value.to_js_string().as_str())
+    }
+}
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct JsString {
@@ -95,6 +108,15 @@ pub struct JsString {
 impl<'a> From<&'a str> for JsString {
     #[inline]
     fn from(value: &'a str) -> Self {
+        JsString {
+            value: Rc::from(value),
+        }
+    }
+}
+
+impl From<String> for JsString {
+    #[inline]
+    fn from(value: String) -> Self {
         JsString {
             value: Rc::from(value),
         }

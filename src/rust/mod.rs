@@ -90,7 +90,7 @@ fn statement_to_rust_text(statement: &Statement) -> String {
                 .map(|body| body.statements.iter().map(statement_to_rust_text).join("\n"))
                 .unwrap_or_else(String::new);
 
-            format!("fn {name}({params}) -> JsValue {{ {body} return JsValue::Undefined; }} ")
+            format!("let {name} = |{params}| -> JsValue {{ {body} return JsValue::Undefined; }}; ")
         }
         Statement::ReturnStatement(statement) => {
             let expression = statement
@@ -343,6 +343,16 @@ fn static_member_read_to_rust_text(exp: &StaticMemberExpression) -> String {
             match prop_name {
                 "PI" => return String::from("JsMath::PI"),
                 "sqrt" => return String::from("JsMath::sqrt"),
+                _ => ()
+            }
+        } else if ident.name == "process" {
+            match prop_name {
+                "argv" => return String::from("JsProcess::argv()"),
+                _ => ()
+            }
+        } else if ident.name == "console" {
+            match prop_name {
+                "log" => return String::from("JsConsole::log"),
                 _ => ()
             }
         }
